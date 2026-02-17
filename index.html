@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Genea Quoting Tool</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICON COMPONENTS (Replacing lucide-react) ---
+        const IconBase = ({ children, className = "w-6 h-6", ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>
+                {children}
+            </svg>
+        );
+        const Search = (props) => <IconBase {...props}><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></IconBase>;
+        const Plus = (props) => <IconBase {...props}><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></IconBase>;
+        const Trash2 = (props) => <IconBase {...props}><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></IconBase>;
+        const FileText = (props) => <IconBase {...props}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></IconBase>;
+        const ChevronRight = (props) => <IconBase {...props}><polyline points="9 18 15 12 9 6"></polyline></IconBase>;
+        const ChevronLeft = (props) => <IconBase {...props}><polyline points="15 18 9 12 15 6"></polyline></IconBase>;
+        const Building2 = (props) => <IconBase {...props}><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path></IconBase>;
+        const Package = (props) => <IconBase {...props}><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"></line><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></IconBase>;
+
+        // --- STORAGE POLYFILL ---
+        if (!window.storage) {
+            window.storage = {
+                list: async (prefix) => {
+                    const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix));
+                    return { keys };
+                },
+                set: async (key, value) => {
+                    localStorage.setItem(key, value);
+                    return true;
+                }
+            };
+        }
+
+        const PRODUCTS = [
+            {"poe":"Hardware","Product Code":"HID20NKS-00-012PDU","Description":"HID Signo 20 Reader OSDP","MSRP":325.89,"Silver Partner 15%":277.01,"Gold Partner 25%":244.42,"Platinum Partner 35%":211.83,"Spec Sheet":"https://www.hidglobal.com/documents/hid-signo-readers-datasheet"},
+            {"poe":"Hardware","Product Code":"HID20KNKS-00-012PDU","Description":"HID Signo 20K Reader with Keypad OSDP","MSRP":552.99,"Silver Partner 15%":470.04,"Gold Partner 25%":414.74,"Platinum Partner 35%":359.44,"Spec Sheet":"https://www.hidglobal.com/documents/hid-signo-readers-datasheet"},
+            {"poe":"Hardware","Product Code":"HID40NKS-00-012PDU","Description":"HID Signo 40 Single Gang Reader OSDP","MSRP":335.75,"Silver Partner 15%":285.39,"Gold Partner 25%":251.81,"Platinum Partner 35%":218.24,"Spec Sheet":"https://www.hidglobal.com/documents/hid-signo-readers-datasheet"},
+            {"poe":"Hardware","Product Code":"HID40KNKS-00-012PDU","Description":"HID Signo 40K Single Gang Reader with Keypad OSDP","MSRP":552.99,"Silver Partner 15%":470.04,"Gold Partner 25%":414.74,"Platinum Partner 35%":359.44,"Spec Sheet":"https://www.hidglobal.com/documents/hid-signo-readers-datasheet"},
+            {"poe":"Hardware","Product Code":"HID5266PNNA","Description":"HID Key Fob Format H10302 (25 pack, per unit)","MSRP":8.14,"Silver Partner 15%":6.92,"Gold Partner 25%":6.11,"Platinum Partner 35%":5.29,"Spec Sheet":"https://www.hidglobal.com/documents/seos-8k-keyfob-datasheet"},
+            {"poe":"Hardware","Product Code":"HID5006PGGAN","Description":"SEOS ICLASS Smart Cards - 37Bit (25 pack, per unit)","MSRP":6.23,"Silver Partner 15%":5.29,"Gold Partner 25%":4.67,"Platinum Partner 35%":4.05,"Spec Sheet":"https://www.hidglobal.com/sites/default/files/documentlibrary/hid-seos-iclass-card-ds-en.pdf"},
+            {"poe":"Hardware","Product Code":"HID1326LMSMV","Description":"HID 1326 Series Prox Card II (25 pack, per unit)","MSRP":4.17,"Silver Partner 15%":3.54,"Gold Partner 25%":3.13,"Platinum Partner 35%":2.71,"Spec Sheet":"https://www.hidglobal.com/sites/default/files/documentlibrary/prox-proxcard-ii-card-ds-en.pdf"},
+            {"poe":"Hardware","Product Code":"MSMP2500","Description":"Mercury MP2500","MSRP":1687.34,"Silver Partner 15%":1434.24,"Gold Partner 25%":1265.51,"Platinum Partner 35%":1096.77,"Spec Sheet":"https://www.mercury-security.com/wp-content/uploads/2025/02/pacs-mercury-MP2500-ds-en.pdf"},
+            {"poe":"Hardware","Product Code":"MSMP1501","Description":"Mercury MP1501","MSRP":751.26,"Silver Partner 15%":638.57,"Gold Partner 25%":563.44,"Platinum Partner 35%":488.32,"Spec Sheet":"https://www.mercury-security.com/wp-content/uploads/2025/02/pacs-mercury-MP1501-ds-en.pdf"},
+            {"poe":"Hardware","Product Code":"MSMP1502","Description":"Mercury MP1502","MSRP":1332.91,"Silver Partner 15%":1132.97,"Gold Partner 25%":999.68,"Platinum Partner 35%":866.39,"Spec Sheet":"https://www.mercury-security.com/wp-content/uploads/2025/02/pacs-mercury-MP1502-ds-en.pdf"},
+            {"poe":"Hardware","Product Code":"MSMP4502","Description":"Mercury MP4502","MSRP":2278.09,"Silver Partner 15%":1936.38,"Gold Partner 25%":1708.57,"Platinum Partner 35%":1480.76,"Spec Sheet":"https://www.mercury-security.com/wp-content/uploads/2025/02/pacs-mercury-MP4502-ds-en.pdf"},
+            {"poe":"Hardware","Product Code":"MSMR50S3","Description":"Mercury MR50-S3","MSRP":457.45,"Silver Partner 15%":388.83,"Gold Partner 25%":343.08,"Platinum Partner 35%":297.34,"Spec Sheet":"https://www.mercury-security.com/wp-content/uploads/2023/10/HID_Mercury_MR50-S3_Controller-DataSheet.pdf"},
+            {"poe":"Hardware","Product Code":"MSMR52S3B","Description":"Mercury MR52-S3B","MSRP":917.88,"Silver Partner 15%":780.20,"Gold Partner 25%":688.41,"Platinum Partner 35%":596.62,"Spec Sheet":"https://www.mercury-security.com/wp-content/uploads/2023/10/HID_Mercury_MR52-S3_Controller_Datasheet.pdf"},
+            {"poe":"Hardware","Product Code":"WVET-10-7WS-CTH2-LMk50015","Description":"Wavelynx Mullion Reader w/ HF+Prox+BLE","MSRP":371.22,"Silver Partner 15%":315.54,"Gold Partner 25%":278.41,"Platinum Partner 35%":241.29,"Spec Sheet":"https://support.wavelynx.com/en_US/technical-drawings-and-specifications/technical-specs-on-ethos-readers"},
+            {"poe":"Hardware","Product Code":"WVET-20-7WS-CGN1-LMk50015","Description":"Wavelynx Single Gang Reader w/ HF+Prox+BLE","MSRP":438.31,"Silver Partner 15%":372.56,"Gold Partner 25%":328.73,"Platinum Partner 35%":284.90,"Spec Sheet":"https://support.wavelynx.com/en_US/technical-drawings-and-specifications/technical-specs-on-ethos-readers"},
+            {"poe":"Hardware","Product Code":"WVET-25-7WS-CGN1-LMk50015","Description":"Wavelynx Keypad Reader w/ HF+Prox+BLE","MSRP":625.26,"Silver Partner 15%":531.47,"Gold Partner 25%":468.94,"Platinum Partner 35%":406.42,"Spec Sheet":"https://support.wavelynx.com/en_US/technical-drawings-and-specifications/technical-specs-on-ethos-readers"},
+            {"poe":"Hardware","Product Code":"HX401","Description":"OnLogic Helix 401 CL","MSRP":2742.22,"Silver Partner 15%":2330.89,"Gold Partner 25%":2056.67,"Platinum Partner 35%":1782.44,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"AC-EL1","Description":"Genea Access Control up to 10 doors","MSRP":2500.00,"Silver Partner 15%":2125.00,"Gold Partner 25%":1875.00,"Platinum Partner 35%":1625.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"AC-EL2","Description":"Genea Access Control 11-30 doors (per door)","MSRP":200.00,"Silver Partner 15%":170.00,"Gold Partner 25%":150.00,"Platinum Partner 35%":130.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"AC-EL3","Description":"Genea Access Control 31-100 doors (per door)","MSRP":180.00,"Silver Partner 15%":153.00,"Gold Partner 25%":135.00,"Platinum Partner 35%":117.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"AC-EL4","Description":"Genea Access Control 100+ doors (per door)","MSRP":120.00,"Silver Partner 15%":102.00,"Gold Partner 25%":90.00,"Platinum Partner 35%":78.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"AC-EM1","Description":"Mobile Addtl User License","MSRP":15.00,"Silver Partner 15%":12.75,"Gold Partner 25%":11.25,"Platinum Partner 35%":9.75,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"AC-EM2","Description":"Mobile Wallet User License","MSRP":20.00,"Silver Partner 15%":17.00,"Gold Partner 25%":15.00,"Platinum Partner 35%":13.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"AC-EM3","Description":"Intercom License (yearly)","MSRP":480.00,"Silver Partner 15%":408.00,"Gold Partner 25%":360.00,"Platinum Partner 35%":312.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"APP-ADD","Description":"Mobile Wallet Add on","MSRP":5.00,"Silver Partner 15%":4.25,"Gold Partner 25%":3.75,"Platinum Partner 35%":3.25,"Spec Sheet":null},
+            {"poe":"Services","Product Code":"SF-L1","Description":"Set-up Fee - Level One","MSRP":1500.00,"Silver Partner 15%":1275.00,"Gold Partner 25%":1125.00,"Platinum Partner 35%":975.00,"Spec Sheet":null},
+            {"poe":"Services","Product Code":"SF-L2","Description":"Set-up Fee - Level Two","MSRP":3000.00,"Silver Partner 15%":2550.00,"Gold Partner 25%":2250.00,"Platinum Partner 35%":1950.00,"Spec Sheet":null},
+            {"poe":"Services","Product Code":"SF-L3","Description":"Set-up Fee - Level Three","MSRP":6500.00,"Silver Partner 15%":5525.00,"Gold Partner 25%":4875.00,"Platinum Partner 35%":4225.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"VM-T1","Description":"Visitor Management Tier 1 (1-5 locations)","MSRP":3300.00,"Silver Partner 15%":2805.00,"Gold Partner 25%":2475.00,"Platinum Partner 35%":2145.00,"Spec Sheet":null},
+            {"poe":"Software","Product Code":"VM-T2","Description":"Visitor Management Tier 2 (6-10 locations)","MSRP":3135.00,"Silver Partner 15%":2664.75,"Gold Partner 25%":2351.25,"Platinum Partner 35%":2037.75,"Spec Sheet":null},
+            {"poe":"Hardware- Locks","Product Code":"ASSA-01","Description":"Assa Abloy Aperio IP Hub","MSRP":721.19,"Silver Partner 15%":613.01,"Gold Partner 25%":540.89,"Platinum Partner 35%":468.77,"Spec Sheet":null},
+            {"poe":"Hardware- Locks","Product Code":"ASSA-02","Description":"Assa Abloy Aperio Mortise Lockset","MSRP":2260.44,"Silver Partner 15%":1921.37,"Gold Partner 25%":1695.33,"Platinum Partner 35%":1469.29,"Spec Sheet":null},
+            {"poe":"Hardware- Locks","Product Code":"ASSA-03","Description":"Assa Abloy Aperio Cylinderical Lockset","MSRP":1614.60,"Silver Partner 15%":1372.41,"Gold Partner 25%":1210.95,"Platinum Partner 35%":1049.49,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO75-B100C4PE1M","Description":"LSP 2 Door Enclosure","MSRP":850.00,"Silver Partner 15%":722.50,"Gold Partner 25%":637.50,"Platinum Partner 35%":552.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO75-B100C4D8PE2M","Description":"LSP 4 Door Enclosure","MSRP":1100.00,"Silver Partner 15%":935.00,"Gold Partner 25%":825.00,"Platinum Partner 35%":715.00,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO150-B100C8D8PE4M","Description":"LSP 8 Door Enclosure - Small","MSRP":1450.00,"Silver Partner 15%":1232.50,"Gold Partner 25%":1087.50,"Platinum Partner 35%":942.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO150-B100C8D8PE6M","Description":"LSP 8 Door Enclosure - Medium","MSRP":1650.00,"Silver Partner 15%":1402.50,"Gold Partner 25%":1237.50,"Platinum Partner 35%":1072.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO150/250-2C82D8PE4M1","Description":"LSP 16 Door Enclosure - Small","MSRP":2450.00,"Silver Partner 15%":2082.50,"Gold Partner 25%":1837.50,"Platinum Partner 35%":1592.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO150/250-2C82D8PE6M1","Description":"LSP 16 Door Enclosure - Medium","MSRP":2725.00,"Silver Partner 15%":2316.25,"Gold Partner 25%":2043.75,"Platinum Partner 35%":1771.25,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO150/250-2C82D8PE8M2","Description":"LSP 16 Door Enclosure - Large","MSRP":3100.00,"Silver Partner 15%":2635.00,"Gold Partner 25%":2325.00,"Platinum Partner 35%":2015.00,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"FPO250/250-3C83D8PE12M","Description":"LSP 24 Door Enclosure","MSRP":3850.00,"Silver Partner 15%":3272.50,"Gold Partner 25%":2887.50,"Platinum Partner 35%":2502.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"T1MK3F4SGN","Description":"Altronix Trove T1MK3F4SGN (4 Door)","MSRP":1450.00,"Silver Partner 15%":1232.50,"Gold Partner 25%":1087.50,"Platinum Partner 35%":942.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"T2MK7F8SGN","Description":"Altronix Trove T2MK7F8SGN (8 Door)","MSRP":2250.00,"Silver Partner 15%":1912.50,"Gold Partner 25%":1687.50,"Platinum Partner 35%":1462.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"T3MK75F16GN","Description":"Altronix Trove T3MK75F16GN (16 Door)","MSRP":3450.00,"Silver Partner 15%":2932.50,"Gold Partner 25%":2587.50,"Platinum Partner 35%":2242.50,"Spec Sheet":null},
+            {"poe":"Hardware","Product Code":"T3MK77F16SDGN","Description":"Altronix Trove T3MK77F16SDGN (16 Door)","MSRP":4650.00,"Silver Partner 15%":3952.50,"Gold Partner 25%":3487.50,"Platinum Partner 35%":3022.50,"Spec Sheet":null},
+        ];
+
+        const PARTNER_LEVELS = [
+            { id: 'silver', name: 'Silver Partner', discount: 15, column: 'Silver Partner 15%' },
+            { id: 'gold', name: 'Gold Partner', discount: 25, column: 'Gold Partner 25%' },
+            { id: 'platinum', name: 'Platinum Partner', discount: 35, column: 'Platinum Partner 35%' }
+        ];
+
+        function QuotingTool() {
+            const [step, setStep] = useState(0);
+            const [showDistributedDialog, setShowDistributedDialog] = useState(false);
+            const [quoteData, setQuoteData] = useState({
+                customerName: '', projectName: '', partnerLevel: 'silver', salesRep: '',
+                projectType: '', estimatedDoors: '', mdfLocation: '', numIDFs: '', cabinetVendor: '',
+                autoCalculateHardware: true, useDistributedArchitecture: false,
+                signo20Readers: '', signo40Readers: '', items: []
+            });
+            const [searchTerm, setSearchTerm] = useState('');
+            const [selectedCategory, setSelectedCategory] = useState('All');
+            const [savedQuotes, setSavedQuotes] = useState([]);
+
+            useEffect(() => { loadSavedQuotes(); }, []);
+
+            const loadSavedQuotes = async () => {
+                try {
+                    const result = await window.storage.list('quote:', false);
+                    if (result && result.keys) setSavedQuotes(result.keys);
+                } catch (error) { console.log('No saved quotes yet'); }
+            };
+
+            const saveQuoteJSON = async () => {
+                const quoteJSON = JSON.stringify(quoteData, null, 2);
+                const blob = new Blob([quoteJSON], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Quote_${quoteData.projectName}_${new Date().toISOString().split('T')[0]}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const addItem = (product) => {
+                setQuoteData(prev => ({ ...prev, items: [...prev.items, { ...product, quantity: 1, id: Date.now() }] }));
+            };
+
+            const updateQuantity = (id, quantity) => {
+                setQuoteData(prev => ({
+                    ...prev,
+                    items: prev.items.map(item => item.id === id ? { ...item, quantity: parseInt(quantity) || 0 } : item)
+                }));
+            };
+
+            const removeItem = (id) => {
+                setQuoteData(prev => ({ ...prev, items: prev.items.filter(item => item.id !== id) }));
+            };
+
+            const getPrice = (product) => {
+                const level = PARTNER_LEVELS.find(l => l.id === quoteData.partnerLevel);
+                return product[level.column] || product.MSRP;
+            };
+
+            const calculateSubtotal = () => {
+                return quoteData.items.filter(item => !item['Product Code'].startsWith('SF-')).reduce((sum, item) => sum + (getPrice(item) * item.quantity), 0);
+            };
+
+            const calculateTotal = () => {
+                return quoteData.items.reduce((sum, item) => sum + (getPrice(item) * item.quantity), 0);
+            };
+
+            const filteredProducts = PRODUCTS.filter(p => {
+                const matchesSearch = p.Description.toLowerCase().includes(searchTerm.toLowerCase()) || p['Product Code'].toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesCategory = selectedCategory === 'All' || p.poe === selectedCategory;
+                return matchesSearch && matchesCategory;
+            });
+
+            const categories = ['All', ...new Set(PRODUCTS.map(p => p.poe))];
+
+            const calculateSetupFee = (quoteTotal) => {
+                const total = parseFloat(quoteTotal) || 0;
+                if (total === 0) return null;
+                if (total < 10000) return { sku: 'SF-L1', name: 'Set-up Fee - Level One', reason: 'Quote total under $10,000' };
+                if (total < 25000) return { sku: 'SF-L2', name: 'Set-up Fee - Level Two', reason: 'Quote total $10,000 - $24,999' };
+                return { sku: 'SF-L3', name: 'Set-up Fee - Level Three', reason: 'Quote total $25,000+' };
+            };
+
+            const calculateDoorLicenses = (numDoors) => {
+                const doors = parseInt(numDoors) || 0;
+                if (doors === 0) return [];
+                const licenses = [];
+                if (doors >= 1) licenses.push({ sku: 'AC-EL1', quantity: 1, coverage: 'Access Control License (1-10 doors)' });
+                if (doors > 10) licenses.push({ sku: 'AC-EL2', quantity: Math.min(doors - 10, 20), coverage: `Access Control License (11-${10 + Math.min(doors - 10, 20)} doors)` });
+                if (doors > 30) licenses.push({ sku: 'AC-EL3', quantity: Math.min(doors - 30, 70), coverage: `Access Control License (31-${30 + Math.min(doors - 30, 70)} doors)` });
+                if (doors > 100) licenses.push({ sku: 'AC-EL4', quantity: doors - 100, coverage: `Access Control License (100+ doors)` });
+                return licenses;
+            };
+
+            const calculateRequiredHardware = (numDoors) => {
+                const doors = parseInt(numDoors) || 0;
+                if (doors === 0 || quoteData.projectType !== 'new') return { mp1502: 0, mr52s3b: 0, warning: null };
+                const optimal = quoteData.cabinetVendor ? getOptimalCabinet(doors, quoteData.cabinetVendor) : null;
+                const numCabinets = optimal ? optimal.length : 1;
+                if (quoteData.useDistributedArchitecture && numCabinets > 1) {
+                    const doorsPerCabinet = Math.ceil(doors / numCabinets);
+                    if (doorsPerCabinet > 64) return { mp1502: 0, mr52s3b: 0, warning: `Each cabinet would need ${doorsPerCabinet} doors (exceeds 64-door limit per MP1502). Add more cabinets or use centralized architecture.` };
+                    let mr52PerCabinet = 0;
+                    if (doorsPerCabinet > 2) mr52PerCabinet = Math.ceil((doorsPerCabinet - 2) / 2);
+                    return { mp1502: numCabinets, mr52s3b: mr52PerCabinet * numCabinets, distributed: true, cabinetCount: numCabinets, doorsPerCabinet: doorsPerCabinet, warning: null };
+                }
+                const controllersNeeded = Math.ceil(doors / 64);
+                let totalMr52s3b = 0;
+                for (let i = 0; i < controllersNeeded; i++) {
+                    const doorsForThisController = Math.min(64, doors - (i * 64));
+                    if (doorsForThisController > 2) totalMr52s3b += Math.ceil((doorsForThisController - 2) / 2);
+                }
+                return { mp1502: controllersNeeded, mr52s3b: totalMr52s3b, centralized: controllersNeeded > 1, warning: null };
+            };
+
+            const getOptimalCabinet = (numDoors, vendor) => {
+                const doors = parseInt(numDoors) || 0;
+                if (doors === 0 || !vendor) return null;
+                if (vendor === 'lsp') {
+                    if (doors <= 2) return [{ sku: 'FPO75-B100C4PE1M', name: 'LSP 2 Door Enclosure', quantity: 1, coverage: '2 doors', reason: 'Compact solution for small installation' }];
+                    if (doors <= 4) return [{ sku: 'FPO75-B100C4D8PE2M', name: 'LSP 4 Door Enclosure', quantity: 1, coverage: '4 doors', reason: 'Standard 4-door power enclosure' }];
+                    if (doors <= 8) return [{ sku: 'FPO150-B100C8D8PE6M', name: 'LSP 8 Door Enclosure - Medium', quantity: 1, coverage: '8 doors', reason: 'Medium size provides optimal space' }];
+                    if (doors <= 16) return [{ sku: 'FPO150/250-2C82D8PE6M1', name: 'LSP 16 Door Enclosure - Medium', quantity: 1, coverage: '16 doors', reason: 'Best balance of capacity and space' }];
+                    if (doors <= 24) return [{ sku: 'FPO250/250-3C83D8PE12M', name: 'LSP 24 Door Enclosure', quantity: 1, coverage: '24 doors', reason: 'High-capacity dual voltage system' }];
+                    if (doors <= 40) return [
+                        { sku: 'FPO250/250-3C83D8PE12M', name: 'LSP 24 Door Enclosure', quantity: 1, coverage: '24 doors (primary)', reason: 'Primary cabinet' },
+                        { sku: 'FPO150/250-2C82D8PE6M1', name: 'LSP 16 Door Enclosure - Medium', quantity: 1, coverage: `${doors - 24} additional doors`, reason: 'Secondary cabinet for expansion' }
+                    ];
+                    if (doors <= 48) return [{ sku: 'FPO250/250-3C83D8PE12M', name: 'LSP 24 Door Enclosure', quantity: 2, coverage: `${doors} doors total`, reason: 'Dual cabinet configuration' }];
+                    if (doors <= 66) {
+                        const remaining = doors - 48;
+                        if (remaining <= 8) return [
+                            { sku: 'FPO250/250-3C83D8PE12M', name: 'LSP 24 Door Enclosure', quantity: 2, coverage: '48 doors', reason: 'Primary cabinets' },
+                            { sku: 'FPO150-B100C8D8PE6M', name: 'LSP 8 Door Enclosure - Medium', quantity: 1, coverage: `${remaining} additional doors`, reason: 'Tertiary cabinet' }
+                        ];
+                        return [
+                            { sku: 'FPO250/250-3C83D8PE12M', name: 'LSP 24 Door Enclosure', quantity: 2, coverage: '48 doors', reason: 'Primary cabinets' },
+                            { sku: 'FPO150/250-2C82D8PE6M1', name: 'LSP 16 Door Enclosure - Medium', quantity: 1, coverage: `${remaining} additional doors`, reason: 'Tertiary cabinet' }
+                        ];
+                    }
+                    const cabinets = [];
+                    let remainingDoors = doors;
+                    const num24Door = Math.floor(doors / 24);
+                    const remainder = doors % 24;
+                    if (num24Door > 0) {
+                        cabinets.push({ sku: 'FPO250/250-3C83D8PE12M', name: 'LSP 24 Door Enclosure', quantity: num24Door, coverage: `${num24Door * 24} doors`, reason: num24Door > 1 ? 'Primary 24-door cabinets' : 'Primary 24-door cabinet' });
+                        remainingDoors -= (num24Door * 24);
+                    }
+                    if (remainder > 0) {
+                        if (remainder <= 2) cabinets.push({ sku: 'FPO75-B100C4PE1M', name: 'LSP 2 Door Enclosure', quantity: 1, coverage: `${remainder} additional doors`, reason: 'Additional cabinet' });
+                        else if (remainder <= 4) cabinets.push({ sku: 'FPO75-B100C4D8PE2M', name: 'LSP 4 Door Enclosure', quantity: 1, coverage: `${remainder} additional doors`, reason: 'Additional cabinet' });
+                        else if (remainder <= 8) cabinets.push({ sku: 'FPO150-B100C8D8PE6M', name: 'LSP 8 Door Enclosure - Medium', quantity: 1, coverage: `${remainder} additional doors`, reason: 'Additional cabinet' });
+                        else cabinets.push({ sku: 'FPO150/250-2C82D8PE6M1', name: 'LSP 16 Door Enclosure - Medium', quantity: 1, coverage: `${remainder} additional doors`, reason: 'Additional cabinet' });
+                    }
+                    return cabinets;
+                } else if (vendor === 'altronix') {
+                    if (doors <= 4) return [{ sku: 'T1MK3F4SGN', name: 'Altronix Trove T1MK3F4SGN', quantity: 1, coverage: '4 doors', reason: 'Integrated 4-door access & power solution' }];
+                    if (doors <= 8) return [{ sku: 'T2MK7F8SGN', name: 'Altronix Trove T2MK7F8SGN', quantity: 1, coverage: '8 doors', reason: 'Mid-size integrated 8-door solution' }];
+                    if (doors <= 16) return [{ sku: 'T3MK75F16GN', name: 'Altronix Trove T3MK75F16GN', quantity: 1, coverage: '16 doors', reason: 'High-capacity 16-door Trove' }];
+                    const cabinets = [];
+                    let remainingDoors = doors;
+                    const num16Door = Math.floor(doors / 16);
+                    const remainder = doors % 16;
+                    if (num16Door > 0) {
+                        cabinets.push({ sku: 'T3MK75F16GN', name: 'Altronix Trove T3MK75F16GN', quantity: num16Door, coverage: `${num16Door * 16} doors`, reason: num16Door > 1 ? 'Primary 16-door Trove cabinets' : 'Primary 16-door Trove cabinet' });
+                        remainingDoors -= (num16Door * 16);
+                    }
+                    if (remainder > 0) {
+                        if (remainder <= 4) cabinets.push({ sku: 'T1MK3F4SGN', name: 'Altronix Trove T1MK3F4SGN', quantity: 1, coverage: `${remainder} additional doors`, reason: 'Additional 4-door Trove cabinet' });
+                        else if (remainder <= 8) cabinets.push({ sku: 'T2MK7F8SGN', name: 'Altronix Trove T2MK7F8SGN', quantity: 1, coverage: `${remainder} additional doors`, reason: 'Additional 8-door Trove cabinet' });
+                        else cabinets.push({ sku: 'T3MK75F16GN', name: 'Altronix Trove T3MK75F16GN', quantity: 1, coverage: `${remainder} additional doors`, reason: 'Additional 16-door Trove cabinet' });
+                    }
+                    return cabinets;
+                }
+                return null;
+            };
+
+            const autoAddHardware = () => {
+                const newItems = [...quoteData.items];
+                const filteredItems = newItems.filter(item => !item.autoAdded);
+                if (quoteData.autoCalculateHardware && quoteData.projectType === 'new') {
+                    const hardware = calculateRequiredHardware(quoteData.estimatedDoors);
+                    if (!hardware.warning && (hardware.mp1502 > 0 || hardware.mr52s3b > 0)) {
+                        if (hardware.mp1502 > 0) {
+                            const mp1502Product = PRODUCTS.find(p => p['Product Code'] === 'MSMP1502');
+                            if (mp1502Product) filteredItems.unshift({ ...mp1502Product, quantity: hardware.mp1502, id: Date.now(), autoAdded: true });
+                        }
+                        if (hardware.mr52s3b > 0) {
+                            const mr52s3bProduct = PRODUCTS.find(p => p['Product Code'] === 'MSMR52S3B');
+                            if (mr52s3bProduct) filteredItems.unshift({ ...mr52s3bProduct, quantity: hardware.mr52s3b, id: Date.now() + 1, autoAdded: true });
+                        }
+                    }
+                    if (quoteData.estimatedDoors > 0) {
+                        const licenses = calculateDoorLicenses(quoteData.estimatedDoors);
+                        licenses.forEach((license, idx) => {
+                            const licenseProduct = PRODUCTS.find(p => p['Product Code'] === license.sku);
+                            if (licenseProduct) filteredItems.push({ ...licenseProduct, quantity: license.quantity, id: Date.now() + 200 + idx, autoAdded: true, isLicense: true });
+                        });
+                    }
+                }
+                if (parseInt(quoteData.signo20Readers) > 0) {
+                    const signo20Product = PRODUCTS.find(p => p['Product Code'] === 'HID20NKS-00-012PDU');
+                    if (signo20Product) filteredItems.push({ ...signo20Product, quantity: parseInt(quoteData.signo20Readers), id: Date.now() + 100, autoAdded: true });
+                }
+                if (parseInt(quoteData.signo40Readers) > 0) {
+                    const signo40Product = PRODUCTS.find(p => p['Product Code'] === 'HID40NKS-00-012PDU');
+                    if (signo40Product) filteredItems.push({ ...signo40Product, quantity: parseInt(quoteData.signo40Readers), id: Date.now() + 101, autoAdded: true });
+                }
+                const subtotal = filteredItems.reduce((sum, item) => sum + (getPrice(item) * item.quantity), 0);
+                if (quoteData.projectType === 'new' && subtotal > 0) {
+                    const setupFee = calculateSetupFee(subtotal);
+                    if (setupFee) {
+                        const setupFeeProduct = PRODUCTS.find(p => p['Product Code'] === setupFee.sku);
+                        if (setupFeeProduct) filteredItems.push({ ...setupFeeProduct, quantity: 1, id: Date.now() + 300, autoAdded: true, isSetupFee: true });
+                    }
+                }
+                setQuoteData(prev => ({ ...prev, items: filteredItems }));
+            };
+
+            const downloadQuote = () => {
+                const level = PARTNER_LEVELS.find(l => l.id === quoteData.partnerLevel);
+                const cabinetVendorName = quoteData.cabinetVendor === 'lsp' ? 'LSP (LifeSafety Power)' : quoteData.cabinetVendor === 'altronix' ? 'Altronix Trove' : 'Not selected';
+                const subtotal = calculateSubtotal();
+                const total = calculateTotal();
+                const setupFeeItem = quoteData.items.find(item => item.isSetupFee);
+                
+                const content = `
+QUOTATION
+=========
+
+Customer: ${quoteData.customerName}
+Project: ${quoteData.projectName}
+Partner Level: ${level.name} (${level.discount}% discount)
+Sales Representative: ${quoteData.salesRep}
+Project Type: ${quoteData.projectType}
+Total Doors: ${quoteData.estimatedDoors} (openings, gates, OHD)
+
+System Architecture:
+MDF Location: ${quoteData.mdfLocation || 'Not specified'}
+Number of IDFs: ${quoteData.numIDFs || '0'}
+Cabinet System: ${cabinetVendorName}
+
+Card Readers:
+${parseInt(quoteData.signo20Readers) > 0 ? `HID Signo 20 (Mullion): ${quoteData.signo20Readers}` : ''}
+${parseInt(quoteData.signo40Readers) > 0 ? `HID Signo 40 (Single Gang): ${quoteData.signo40Readers}` : ''}
+${!parseInt(quoteData.signo20Readers) && !parseInt(quoteData.signo40Readers) ? 'None specified' : ''}
+
+Date: ${new Date().toLocaleDateString()}
+
+ITEMS:
+------
+${quoteData.items.map(item => `${item['Product Code']} - ${item.Description}${item.autoAdded && !item.isLicense && !item.isSetupFee ? ' [AUTO-CALCULATED]' : ''}${item.isLicense ? ' [SOFTWARE LICENSE - AUTO]' : ''}${item.isSetupFee ? ' [SETUP FEE - AUTO]' : ''}
+  Quantity: ${item.quantity}
+  Unit Price: $${getPrice(item).toFixed(2)}
+  Subtotal: $${(getPrice(item) * item.quantity).toFixed(2)}`).join('\n\n')}
+
+------
+SUBTOTAL: $${subtotal.toFixed(2)}
+${setupFeeItem ? `Setup Fee (${setupFeeItem.Description}): $${(getPrice(setupFeeItem) * setupFeeItem.quantity).toFixed(2)}` : ''}
+------
+TOTAL: $${total.toFixed(2)}`;
+
+                const blob = new Blob([content], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Quote_${quoteData.projectName}_${new Date().toISOString().split('T')[0]}.txt`;
+                a.click();
+            };
+
+            const downloadPDF = async () => {
+                const level = PARTNER_LEVELS.find(l => l.id === quoteData.partnerLevel);
+                const cabinetVendorName = quoteData.cabinetVendor === 'lsp' ? 'LSP (LifeSafety Power)' : quoteData.cabinetVendor === 'altronix' ? 'Altronix Trove' : 'Not selected';
+                const subtotal = calculateSubtotal();
+                const total = calculateTotal();
+                const setupFeeItem = quoteData.items.find(item => item.isSetupFee);
+                
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+                document.head.appendChild(script);
+                
+                script.onload = () => {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+                    let y = 20;
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const margin = 20;
+                    const contentWidth = pageWidth - (margin * 2);
+                    
+                    doc.setFontSize(20);
+                    doc.setFont(undefined, 'bold');
+                    doc.text('QUOTATION', margin, y); y += 10;
+                    doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.5); doc.line(margin, y, pageWidth - margin, y); y += 10;
+                    
+                    doc.setFontSize(10); doc.setFont(undefined, 'normal');
+                    doc.text(`Customer: ${quoteData.customerName}`, margin, y); y += 6;
+                    doc.text(`Project: ${quoteData.projectName}`, margin, y); y += 6;
+                    doc.text(`Date: ${new Date().toLocaleDateString()}`, margin, y); y += 6;
+                    doc.text(`Sales Representative: ${quoteData.salesRep}`, margin, y); y += 6;
+                    doc.text(`Partner Level: ${level.name} (${level.discount}% discount)`, margin, y); y += 10;
+                    
+                    doc.setFont(undefined, 'bold'); doc.text('SYSTEM CONFIGURATION', margin, y); y += 6;
+                    doc.setFont(undefined, 'normal');
+                    doc.text(`Project Type: ${quoteData.projectType}`, margin, y); y += 6;
+                    doc.text(`Total Doors: ${quoteData.estimatedDoors}`, margin, y); y += 6;
+                    doc.text(`MDF Location: ${quoteData.mdfLocation || 'Not specified'}`, margin, y); y += 6;
+                    doc.text(`Number of IDFs: ${quoteData.numIDFs || '0'}`, margin, y); y += 6;
+                    doc.text(`Cabinet System: ${cabinetVendorName}`, margin, y); y += 6;
+                    if (parseInt(quoteData.signo20Readers) > 0 || parseInt(quoteData.signo40Readers) > 0) {
+                        doc.text(`Card Readers: ${quoteData.signo20Readers || 0} Signo 20, ${quoteData.signo40Readers || 0} Signo 40`, margin, y); y += 6;
+                    }
+                    y += 5;
+                    
+                    doc.setFont(undefined, 'bold'); doc.setFillColor(99, 102, 241); doc.setTextColor(255, 255, 255);
+                    doc.rect(margin, y, contentWidth, 8, 'F');
+                    doc.text('Product Code', margin + 2, y + 5); doc.text('Description', margin + 45, y + 5);
+                    doc.text('Qty', pageWidth - 70, y + 5); doc.text('Unit Price', pageWidth - 55, y + 5); doc.text('Total', pageWidth - 30, y + 5); y += 10;
+                    
+                    doc.setTextColor(0, 0, 0); doc.setFont(undefined, 'normal'); doc.setFontSize(9);
+                    quoteData.items.forEach((item, idx) => {
+                        if (y > 270) { doc.addPage(); y = 20; }
+                        const price = getPrice(item);
+                        const itemTotal = price * item.quantity;
+                        if (idx % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(margin, y - 4, contentWidth, 8, 'F'); }
+                        doc.text(item['Product Code'], margin + 2, y);
+                        doc.text(item.Description.substring(0, 35), margin + 45, y);
+                        doc.text(item.quantity.toString(), pageWidth - 70, y);
+                        doc.text(`$${price.toFixed(2)}`, pageWidth - 55, y);
+                        doc.text(`$${itemTotal.toFixed(2)}`, pageWidth - 30, y); y += 8;
+                    });
+                    
+                    y += 5; doc.setDrawColor(200, 200, 200); doc.line(margin, y, pageWidth - margin, y); y += 8;
+                    doc.setFont(undefined, 'bold'); doc.setFontSize(10);
+                    doc.text('SUBTOTAL:', pageWidth - 70, y); doc.text(`$${subtotal.toFixed(2)}`, pageWidth - 30, y); y += 8;
+                    
+                    if (setupFeeItem) {
+                        doc.setFont(undefined, 'normal');
+                        doc.text(`Setup Fee (${setupFeeItem.Description}):`, pageWidth - 70, y);
+                        doc.text(`$${(getPrice(setupFeeItem) * setupFeeItem.quantity).toFixed(2)}`, pageWidth - 30, y); y += 8;
+                    }
+                    
+                    doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.5); doc.line(pageWidth - 75, y, pageWidth - margin, y); y += 8;
+                    doc.setFontSize(12); doc.setFont(undefined, 'bold');
+                    doc.text('TOTAL:', pageWidth - 70, y); doc.text(`$${total.toFixed(2)}`, pageWidth - 30, y);
+                    
+                    doc.setFontSize(8); doc.setFont(undefined, 'italic'); doc.setTextColor(100, 100, 100);
+                    doc.text('Thank you for your business!', margin, doc.internal.pageSize.getHeight() - 10);
+                    doc.save(`Quote_${quoteData.projectName}_${new Date().toISOString().split('T')[0]}.pdf`);
+                };
+            };
+
+            const loadQuote = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const loadedData = JSON.parse(e.target.result);
+                            setQuoteData(loadedData);
+                            setStep(2);
+                        } catch (error) { alert('Error loading quote file.'); }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+
+            const renderStep = () => {
+                switch(step) {
+                    case 0:
+                        return (
+                            <div className="space-y-6">
+                                <div className="text-center mb-8">
+                                    <Building2 className="w-16 h-16 mx-auto mb-4 text-emerald-600" />
+                                    <h2 className="text-3xl font-bold text-slate-900 mb-2">Project Information</h2>
+                                    <p className="text-slate-600">Let's gather some basic details about this opportunity</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Customer Name</label>
+                                        <input type="text" value={quoteData.customerName} onChange={(e) => setQuoteData({...quoteData, customerName: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors" placeholder="Acme Corporation" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Project Name</label>
+                                        <input type="text" value={quoteData.projectName} onChange={(e) => setQuoteData({...quoteData, projectName: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors" placeholder="New Office Building Access Control" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Sales Representative</label>
+                                        <input type="text" value={quoteData.salesRep} onChange={(e) => setQuoteData({...quoteData, salesRep: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors" placeholder="Your Name" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Partner Level</label>
+                                        <select value={quoteData.partnerLevel} onChange={(e) => setQuoteData({...quoteData, partnerLevel: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors">
+                                            {PARTNER_LEVELS.map(level => ( <option key={level.id} value={level.id}>{level.name} ({level.discount}% discount)</option> ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Project Type</label>
+                                        <select value={quoteData.projectType} onChange={(e) => setQuoteData({...quoteData, projectType: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors">
+                                            <option value="">Select type...</option>
+                                            <option value="new">New Installation</option>
+                                            <option value="upgrade">System Upgrade</option>
+                                            <option value="expansion">System Expansion</option>
+                                            <option value="replacement">System Replacement</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-slate-700 mb-2">Total Number of Doors</label>
+                                        <input type="number" value={quoteData.estimatedDoors} onChange={(e) => setQuoteData({...quoteData, estimatedDoors: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors" placeholder="10" />
+                                        <p className="text-xs text-slate-500 mt-1">Include all openings, gates, and overhead doors (OHD)</p>
+                                    </div>
+                                </div>
+
+                                <div className="bg-teal-50 border-2 border-teal-200 rounded-xl p-6 mt-6">
+                                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                        <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                        Standard Card Reader Requirements
+                                    </h3>
+                                    <p className="text-sm text-slate-600 mb-3">How many of each reader type do you need for this project? (Total should equal {quoteData.estimatedDoors || 0} doors)</p>
+                                    
+                                    <div className="flex gap-2 mb-4">
+                                        <button type="button" onClick={() => setQuoteData({...quoteData, signo20Readers: quoteData.estimatedDoors, signo40Readers: '0'})} className="px-3 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-colors">All Signo 20 (Mullion)</button>
+                                        <button type="button" onClick={() => setQuoteData({...quoteData, signo20Readers: '0', signo40Readers: quoteData.estimatedDoors})} className="px-3 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-colors">All Signo 40 (Single Gang)</button>
+                                        <button type="button" onClick={() => { const half = Math.floor(parseInt(quoteData.estimatedDoors) / 2); setQuoteData({...quoteData, signo20Readers: half.toString(), signo40Readers: (parseInt(quoteData.estimatedDoors) - half).toString()}); }} className="px-3 py-1.5 bg-teal-600 text-white text-xs rounded-lg hover:bg-teal-700 transition-colors">Split 50/50</button>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">HID Signo 20 Readers</label>
+                                            <input type="number" min="0" max={quoteData.estimatedDoors} value={quoteData.signo20Readers} onChange={(e) => { const signo20 = parseInt(e.target.value) || 0; const totalDoors = parseInt(quoteData.estimatedDoors) || 0; const signo40 = Math.max(0, totalDoors - signo20); setQuoteData({...quoteData, signo20Readers: e.target.value, signo40Readers: signo40.toString()}); }} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-teal-500 focus:outline-none transition-colors" placeholder="0" />
+                                            <p className="text-xs text-slate-500 mt-1">Mullion mount (compact)</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">HID Signo 40 Readers</label>
+                                            <input type="number" min="0" max={quoteData.estimatedDoors} value={quoteData.signo40Readers} onChange={(e) => { const signo40 = parseInt(e.target.value) || 0; const totalDoors = parseInt(quoteData.estimatedDoors) || 0; const signo20 = Math.max(0, totalDoors - signo40); setQuoteData({...quoteData, signo40Readers: e.target.value, signo20Readers: signo20.toString()}); }} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-teal-500 focus:outline-none transition-colors" placeholder="0" />
+                                            <p className="text-xs text-slate-500 mt-1">Single gang wall mount</p>
+                                        </div>
+                                    </div>
+                                    
+                                    {(parseInt(quoteData.signo20Readers) > 0 || parseInt(quoteData.signo40Readers) > 0) && (() => {
+                                        const signo20 = parseInt(quoteData.signo20Readers) || 0;
+                                        const signo40 = parseInt(quoteData.signo40Readers) || 0;
+                                        const total = signo20 + signo40;
+                                        const doors = parseInt(quoteData.estimatedDoors) || 0;
+                                        const isMatch = total === doors;
+                                        
+                                        return (
+                                            <div className={`mt-4 p-3 border rounded-lg ${isMatch ? 'bg-teal-100 border-teal-300' : 'bg-amber-100 border-amber-300'}`}>
+                                                <div className={`text-sm font-semibold mb-1 ${isMatch ? 'text-teal-900' : 'text-amber-900'}`}>{isMatch ? '✓' : '⚠️'} Reader Distribution:</div>
+                                                <div className={`text-sm space-y-1 ${isMatch ? 'text-teal-800' : 'text-amber-800'}`}>
+                                                    {signo20 > 0 && <div>• {signo20}x HID Signo 20 Reader OSDP (Mullion) - {((signo20/doors)*100).toFixed(0)}%</div>}
+                                                    {signo40 > 0 && <div>• {signo40}x HID Signo 40 Reader OSDP (Single Gang) - {((signo40/doors)*100).toFixed(0)}%</div>}
+                                                    <div className="mt-2 pt-2 border-t font-semibold" style={{borderColor: isMatch ? 'rgb(153 246 228)' : 'rgb(252 211 77)'}}>Total Readers: {total} {isMatch ? `✓ Matches ${doors} doors` : `⚠️ Should be ${doors} doors`}</div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+
+                                {quoteData.projectType === 'new' && (
+                                    <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6 mt-6">
+                                        <div className="flex items-start gap-3 mb-4">
+                                            <input type="checkbox" id="autoCalc" checked={quoteData.autoCalculateHardware} onChange={(e) => setQuoteData({...quoteData, autoCalculateHardware: e.target.checked})} className="mt-1 w-5 h-5 text-blue-600 rounded border-2 border-blue-300 focus:ring-2 focus:ring-blue-500" />
+                                            <label htmlFor="autoCalc" className="flex-1">
+                                                <div className="text-sm font-semibold text-slate-900">Auto-Calculate Required Hardware</div>
+                                                <div className="text-xs text-slate-600 mt-1">Automatically add Mercury controllers based on door count (1x MP1502 + MR52-S3B units)</div>
+                                            </label>
+                                        </div>
+                                        
+                                        {quoteData.autoCalculateHardware && quoteData.estimatedDoors && (() => {
+                                            const hw = calculateRequiredHardware(quoteData.estimatedDoors);
+                                            if (hw.warning) return <div className="bg-red-50 border border-red-200 rounded-lg p-3"><div className="text-sm font-semibold text-red-900 mb-1">⚠️ System Limit Exceeded</div><div className="text-xs text-red-700">{hw.warning}</div></div>;
+                                            
+                                            if (hw.mp1502 > 0 || hw.mr52s3b > 0) {
+                                                const licenses = calculateDoorLicenses(quoteData.estimatedDoors);
+                                                return (
+                                                    <div className="bg-blue-100 border border-blue-300 rounded-lg p-4">
+                                                        <div className="text-sm font-semibold text-blue-900 mb-2">📦 Hardware to be added:</div>
+                                                        {hw.distributed && <div className="mb-2 p-2 bg-blue-200 border border-blue-400 rounded text-xs text-blue-900 font-semibold">🌐 Distributed Architecture: {hw.cabinetCount} cabinets × {hw.doorsPerCabinet} doors each</div>}
+                                                        {hw.centralized && <div className="mb-2 p-2 bg-blue-200 border border-blue-400 rounded text-xs text-blue-900 font-semibold">🏢 Centralized Multi-Controller: {hw.mp1502} MP1502 controllers (1 per 64 doors)</div>}
+                                                        <div className="space-y-1 text-sm text-blue-800">
+                                                            {hw.mp1502 > 0 && <div>• {hw.mp1502}x Mercury MP1502 (Main Controller{hw.distributed ? ` - 1 per cabinet` : hw.mp1502 > 1 ? ` - 1 per 64 doors` : ' - covers 2 doors'}){hw.distributed && <span className="text-xs block ml-3">Each requires network connection</span>}{hw.centralized && <span className="text-xs block ml-3">Each requires network connection (centralized location)</span>}</div>}
+                                                            {hw.mr52s3b > 0 && <div>• {hw.mr52s3b}x Mercury MR52-S3B (Expansion{hw.distributed ? ` - ${hw.mr52s3b / hw.cabinetCount} per cabinet` : ` - covers additional doors`})</div>}
+                                                            <div className="mt-2 pt-2 border-t border-blue-300 font-semibold">Total Coverage: {quoteData.estimatedDoors} doors</div>
+                                                        </div>
+                                                        {licenses.length > 0 && (
+                                                            <div className="mt-3 pt-3 border-t border-blue-300">
+                                                                <div className="text-sm font-semibold text-blue-900 mb-2">🔑 Software Licenses to be added:</div>
+                                                                <div className="space-y-1 text-sm text-blue-800">
+                                                                    {licenses.map((license, idx) => <div key={idx}>• {license.quantity}x {license.sku} - {license.coverage}</div>)}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </div>
+                                )}
+
+                                {quoteData.projectType === 'new' && quoteData.estimatedDoors && (
+                                    <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-6 mt-6">
+                                        <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" /></svg>
+                                            Cabinet/Enclosure System
+                                        </h3>
+                                        <p className="text-sm text-slate-600 mb-1">Select your preferred cabinet system to see recommended configuration and pricing:</p>
+                                        <p className="text-xs text-purple-700 font-semibold mb-4">→ After selection, we'll show you the optimal cabinet configuration with "Add to Quote" buttons</p>
+                                        
+                                        {parseInt(quoteData.estimatedDoors) > 64 && quoteData.cabinetVendor && !quoteData.useDistributedArchitecture && (() => {
+                                            const optimal = getOptimalCabinet(parseInt(quoteData.estimatedDoors), quoteData.cabinetVendor);
+                                            const numCabinets = optimal ? optimal.length : 1;
+                                            if (numCabinets <= 1) return null;
+                                            return (
+                                                <div className="mb-4 p-4 bg-amber-50 border-2 border-amber-300 rounded-lg">
+                                                    <div className="flex items-start gap-3">
+                                                        <svg className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                        <div className="flex-1">
+                                                            <div className="font-bold text-amber-900 mb-2">System Architecture Options</div>
+                                                            <div className="text-sm text-amber-800 mb-3">Your {quoteData.estimatedDoors}-door system requires {numCabinets} cabinets and multiple MP1502 controllers (1 per 64 doors).<br/><br/><span className="font-semibold">Choose controller placement:</span></div>
+                                                            <div className="text-xs text-amber-700 bg-amber-100 border border-amber-200 rounded p-3 mb-3 space-y-2">
+                                                                <div><div className="font-semibold">🌐 Distributed Architecture:</div><div className="ml-4 mt-1">• 1 MP1502 controller per cabinet</div><div className="ml-4">• Each cabinet is self-contained with its own controller</div><div className="ml-4">• Each requires network connection at cabinet location</div><div className="ml-4">• Recommended for multiple MDFs/IDFs</div></div>
+                                                                <div className="pt-2 border-t border-amber-300"><div className="font-semibold">🏢 Centralized Architecture:</div><div className="ml-4 mt-1">• All MP1502 controllers in one location</div><div className="ml-4">• All cabinets home-run to main controller room</div><div className="ml-4">• All controllers share single network location</div><div className="ml-4">• Standard for single MDF installations</div></div>
+                                                            </div>
+                                                            <div className="flex gap-2">
+                                                                <button type="button" onClick={() => setQuoteData({...quoteData, useDistributedArchitecture: true})} className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors font-semibold">🌐 Distributed (1 per cabinet)</button>
+                                                                <button type="button" onClick={() => setQuoteData({...quoteData, useDistributedArchitecture: false})} className="px-4 py-2 bg-slate-600 text-white text-sm rounded-lg hover:bg-slate-700 transition-colors">🏢 Centralized (All in one location)</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                        
+                                        {quoteData.useDistributedArchitecture && (
+                                            <div className="mb-4 p-3 bg-green-50 border border-green-300 rounded-lg">
+                                                <div className="text-sm text-green-900"><span className="font-semibold">✓ Distributed Architecture Selected:</span> Each cabinet will have its own MP1502 controller with independent network connection. Controllers are distributed across cabinet locations.</div>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                                            <label className={`relative flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all ${quoteData.cabinetVendor === 'lsp' ? 'border-purple-500 bg-purple-100' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                                <input type="radio" name="cabinetVendor" value="lsp" checked={quoteData.cabinetVendor === 'lsp'} onChange={(e) => setQuoteData({...quoteData, cabinetVendor: e.target.value})} className="mt-1 w-4 h-4 text-purple-600" />
+                                                <div className="ml-3">
+                                                    <div className="font-bold text-slate-900">LSP (LifeSafety Power)</div>
+                                                    <div className="text-sm text-slate-600 mt-1">Cost-effective, straightforward power distribution. Industry-standard enclosures with reliable performance.</div>
+                                                    <div className="text-xs text-purple-700 font-semibold mt-2">✓ Best Value  •  ✓ Easy Service  •  ✓ Proven Design</div>
+                                                </div>
+                                            </label>
+                                            
+                                            <label className={`relative flex items-start p-4 border-2 rounded-lg cursor-pointer transition-all ${quoteData.cabinetVendor === 'altronix' ? 'border-purple-500 bg-purple-100' : 'border-slate-200 bg-white hover:border-purple-300'}`}>
+                                                <input type="radio" name="cabinetVendor" value="altronix" checked={quoteData.cabinetVendor === 'altronix'} onChange={(e) => setQuoteData({...quoteData, cabinetVendor: e.target.value})} className="mt-1 w-4 h-4 text-purple-600" />
+                                                <div className="ml-3">
+                                                    <div className="font-bold text-slate-900">Altronix Trove</div>
+                                                    <div className="text-sm text-slate-600 mt-1">Premium integrated solution with removable backplane. Superior wire management and faster installation.</div>
+                                                    <div className="text-xs text-purple-700 font-semibold mt-2">✓ Premium Quality  •  ✓ Fast Install  •  ✓ Advanced Design</div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                        
+                                        {quoteData.cabinetVendor && (() => {
+                                            const optimal = getOptimalCabinet(quoteData.estimatedDoors, quoteData.cabinetVendor);
+                                            if (!optimal || optimal.length === 0) {
+                                                return (
+                                                    <div className="bg-amber-50 border-2 border-amber-300 rounded-lg p-5">
+                                                        <div className="flex items-center gap-2 mb-2"><svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg><div className="font-bold text-amber-900">Unable to Generate Configuration</div></div>
+                                                        <div className="text-sm text-amber-800">Please verify: Door count = {quoteData.estimatedDoors || '(not set)'}, Vendor = {quoteData.cabinetVendor || '(not set)'}<br/><br/>If you see this message, please refresh the page or contact support.</div>
+                                                    </div>
+                                                );
+                                            }
+                                            
+                                            const level = PARTNER_LEVELS.find(l => l.id === quoteData.partnerLevel);
+                                            let totalCabinetCost = 0;
+                                            optimal.forEach(cabinet => {
+                                                const product = PRODUCTS.find(p => p['Product Code'] === cabinet.sku);
+                                                if (product) { const price = product[level.column] || product.MSRP; totalCabinetCost += price * cabinet.quantity; }
+                                            });
+                                            
+                                            const addedCabinets = optimal.filter(cabinet => quoteData.items.some(item => item['Product Code'] === cabinet.sku));
+                                            
+                                            return (
+                                                <div className="bg-white border-2 border-purple-300 rounded-lg p-5">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            <div className="font-bold text-purple-900">{quoteData.cabinetVendor === 'lsp' ? 'LSP' : 'Altronix Trove'} Configuration for {quoteData.estimatedDoors} Doors</div>
+                                                        </div>
+                                                        {addedCabinets.length > 0 && <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">✓ {addedCabinets.length} Added</span>}
+                                                    </div>
+                                                    
+                                                    <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                                                        <div className="text-sm text-purple-900"><span className="font-semibold">Recommended System:</span> {optimal.length} cabinet{optimal.length > 1 ? 's' : ''}  • <span className="font-bold">${totalCabinetCost.toFixed(2)}</span> ({level.name})</div>
+                                                    </div>
+                                                    
+                                                    <div className="space-y-3 mb-4">
+                                                        {optimal.map((cabinet, idx) => {
+                                                            const product = PRODUCTS.find(p => p['Product Code'] === cabinet.sku);
+                                                            const price = product ? (product[level.column] || product.MSRP) : 0;
+                                                            const subtotal = price * cabinet.quantity;
+                                                            const isAdded = quoteData.items.some(item => item['Product Code'] === cabinet.sku);
+                                                            
+                                                            return (
+                                                                <div key={idx} className={`border rounded-lg p-4 ${isAdded ? 'bg-green-50 border-green-300' : 'bg-purple-50 border-purple-200'}`}>
+                                                                    <div className="flex items-start justify-between gap-3">
+                                                                        <div className="flex-1">
+                                                                            <div className="flex items-center gap-2"><div className="font-bold text-slate-900">{cabinet.name}</div>{isAdded && <span className="px-2 py-0.5 bg-green-500 text-white text-xs rounded-full">✓ Added</span>}</div>
+                                                                            <div className="text-sm text-slate-700 mt-1">{cabinet.reason}</div>
+                                                                            <div className="flex items-center gap-4 mt-2 flex-wrap">
+                                                                                <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded">Qty: {cabinet.quantity}</span>
+                                                                                <span className="text-xs font-semibold text-purple-700 bg-purple-100 px-2 py-1 rounded">{cabinet.coverage}</span>
+                                                                                <span className="text-xs text-slate-500">{cabinet.sku}</span>
+                                                                            </div>
+                                                                            <div className="mt-2 text-sm font-semibold text-slate-900">${price.toFixed(2)} each × {cabinet.quantity} = ${subtotal.toFixed(2)}</div>
+                                                                        </div>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                let prod = PRODUCTS.find(p => p['Product Code'] === cabinet.sku);
+                                                                                if (!prod) { prod = { 'poe': 'Hardware', 'Product Code': cabinet.sku, 'Description': cabinet.name, 'MSRP': 1500, 'Silver Partner 15%': 1275, 'Gold Partner 25%': 1125, 'Platinum Partner 35%': 975, 'Spec Sheet': null }; }
+                                                                                const existing = quoteData.items.find(item => item['Product Code'] === cabinet.sku);
+                                                                                if (existing) {
+                                                                                    setQuoteData(prev => ({ ...prev, items: prev.items.map(item => item['Product Code'] === cabinet.sku ? { ...item, quantity: cabinet.quantity } : item) }));
+                                                                                } else {
+                                                                                    const newItem = { ...prod, quantity: cabinet.quantity, id: Date.now() + idx };
+                                                                                    setQuoteData(prev => ({ ...prev, items: [...prev.items, newItem] }));
+                                                                                }
+                                                                            }}
+                                                                            className={`px-3 py-2 text-white text-sm rounded-lg transition-colors whitespace-nowrap font-semibold ${isAdded ? 'bg-green-600 hover:bg-green-700' : 'bg-purple-600 hover:bg-purple-700'}`}
+                                                                        >
+                                                                            {isAdded ? '✓ Added' : 'Add to Quote'}
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                    
+                                                    {optimal.length > 1 && addedCabinets.length < optimal.length && (
+                                                        <button
+                                                            onClick={() => {
+                                                                optimal.forEach((cabinet, idx) => {
+                                                                    let prod = PRODUCTS.find(p => p['Product Code'] === cabinet.sku);
+                                                                    if (!prod) { prod = { 'poe': 'Hardware', 'Product Code': cabinet.sku, 'Description': cabinet.name, 'MSRP': 1500, 'Silver Partner 15%': 1275, 'Gold Partner 25%': 1125, 'Platinum Partner 35%': 975, 'Spec Sheet': null }; }
+                                                                    const existing = quoteData.items.find(item => item['Product Code'] === cabinet.sku);
+                                                                    if (!existing) {
+                                                                        const newItem = { ...prod, quantity: cabinet.quantity, id: Date.now() + idx };
+                                                                        setQuoteData(prev => ({ ...prev, items: [...prev.items, newItem] }));
+                                                                    }
+                                                                });
+                                                            }}
+                                                            className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-bold"
+                                                        >
+                                                            Add All Cabinets to Quote (${totalCabinetCost.toFixed(2)})
+                                                        </button>
+                                                    )}
+                                                    
+                                                    <div className="mt-4 p-3 bg-purple-100 border border-purple-300 rounded-lg">
+                                                        <div className="text-xs text-purple-900"><span className="font-semibold">💡 Recommendation:</span> This configuration provides optimal {quoteData.cabinetVendor === 'lsp' ? ' power distribution and space for battery backup' : ' wire management and installation efficiency'} for your {quoteData.estimatedDoors}-door installation.</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
+
+                                <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-6 mt-6">
+                                    <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
+                                        <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                        System Architecture
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">MDF Location (Main Security Room)</label>
+                                            <input type="text" value={quoteData.mdfLocation} onChange={(e) => setQuoteData({...quoteData, mdfLocation: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors" placeholder="Building A, Room 101" />
+                                            <p className="text-xs text-slate-500 mt-1">Main Distribution Frame location</p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-slate-700 mb-2">Number of IDFs</label>
+                                            <input type="number" value={quoteData.numIDFs} onChange={(e) => setQuoteData({...quoteData, numIDFs: e.target.value})} className="w-full px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors" placeholder="3" />
+                                            <p className="text-xs text-slate-500 mt-1">Intermediate Distribution Frames</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+
+                    case 1:
+                        return (
+                            <div className="space-y-6">
+                                <div className="text-center mb-8">
+                                    <Package className="w-16 h-16 mx-auto mb-4 text-amber-600" />
+                                    <h2 className="text-3xl font-bold text-slate-900 mb-2">Select Products</h2>
+                                    <p className="text-slate-600">Choose the products and quantities for this quote</p>
+                                    {(() => {
+                                        const autoAddedCount = quoteData.items.filter(i => i.autoAdded).length;
+                                        const licenseCount = quoteData.items.filter(i => i.isLicense).length;
+                                        if (autoAddedCount > 0) {
+                                            return (
+                                                <div className="mt-3 inline-block bg-blue-100 border border-blue-300 rounded-lg px-4 py-2 text-sm text-blue-800">
+                                                    <span className="font-semibold">✓ {autoAddedCount} items auto-added</span>
+                                                    {quoteData.autoCalculateHardware && quoteData.projectType === 'new' && ' (controllers'}
+                                                    {licenseCount > 0 && ' + licenses'}
+                                                    {(parseInt(quoteData.signo20Readers) > 0 || parseInt(quoteData.signo40Readers) > 0) && ' + readers'}
+                                                    {quoteData.autoCalculateHardware && quoteData.projectType === 'new' && ')'}
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </div>
+
+                                <div className="bg-white border-2 border-slate-200 rounded-xl p-6">
+                                    <div className="flex gap-4 mb-6">
+                                        <div className="flex-1 relative">
+                                            <Search className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
+                                            <input type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search products..." className="w-full pl-10 pr-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors" />
+                                        </div>
+                                        <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className="px-4 py-3 border-2 border-slate-200 rounded-lg focus:border-emerald-500 focus:outline-none transition-colors">
+                                            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <div className="max-h-96 overflow-y-auto space-y-2">
+                                        {filteredProducts.map((product, idx) => (
+                                            <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
+                                                <div className="flex-1">
+                                                    <div className="font-semibold text-slate-900">{product.Description}</div>
+                                                    <div className="text-sm text-slate-600">{product['Product Code']} • {product.poe}</div>
+                                                    <div className="text-sm font-bold text-emerald-700 mt-1">${getPrice(product).toFixed(2)}</div>
+                                                </div>
+                                                <button onClick={() => addItem(product)} className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors">
+                                                    <Plus className="w-4 h-4" /> Add
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {quoteData.items.length > 0 && (
+                                    <div className="bg-white border-2 border-emerald-200 rounded-xl p-6">
+                                        <h3 className="text-xl font-bold text-slate-900 mb-4">Selected Items ({quoteData.items.length})</h3>
+                                        <div className="space-y-3">
+                                            {quoteData.items.map(item => (
+                                                <div key={item.id} className="flex items-center gap-4 p-4 bg-emerald-50 rounded-lg">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="font-semibold text-slate-900">{item.Description}</div>
+                                                            {item.autoAdded && !item.isLicense && !item.isSetupFee && <span className="px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full font-semibold">AUTO</span>}
+                                                            {item.isLicense && <span className="px-2 py-0.5 bg-green-500 text-white text-xs rounded-full font-semibold">LICENSE</span>}
+                                                            {item.isSetupFee && <span className="px-2 py-0.5 bg-orange-500 text-white text-xs rounded-full font-semibold">SETUP FEE</span>}
+                                                        </div>
+                                                        <div className="text-sm text-slate-600">{item['Product Code']}</div>
+                                                    </div>
+                                                    <input type="number" min="1" value={item.quantity} onChange={(e) => updateQuantity(item.id, e.target.value)} className="w-20 px-3 py-2 border-2 border-slate-200 rounded-lg text-center" />
+                                                    <div className="w-32 text-right font-bold text-emerald-700">${(getPrice(item) * item.quantity).toFixed(2)}</div>
+                                                    <button onClick={() => removeItem(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-5 h-5" /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="mt-6 pt-6 border-t-2 border-emerald-200 flex justify-between items-center">
+                                            <div className="text-lg font-semibold text-slate-900">Total</div>
+                                            <div className="text-3xl font-bold text-emerald-700">${calculateTotal().toFixed(2)}</div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+
+                    case 2:
+                        const level = PARTNER_LEVELS.find(l => l.id === quoteData.partnerLevel);
+                        return (
+                            <div className="space-y-6">
+                                <div className="text-center mb-8">
+                                    <FileText className="w-16 h-16 mx-auto mb-4 text-indigo-600" />
+                                    <h2 className="text-3xl font-bold text-slate-900 mb-2">Review Quote</h2>
+                                    <p className="text-slate-600">Review and finalize your quotation</p>
+                                </div>
+
+                                <div className="bg-white border-2 border-slate-200 rounded-xl p-8">
+                                    <div className="grid grid-cols-2 gap-6 mb-8 pb-8 border-b-2 border-slate-200">
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">Customer</div><div className="text-lg text-slate-900">{quoteData.customerName}</div></div>
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">Project</div><div className="text-lg text-slate-900">{quoteData.projectName}</div></div>
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">Partner Level</div><div className="text-lg text-slate-900">{level.name} ({level.discount}%)</div></div>
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">Sales Rep</div><div className="text-lg text-slate-900">{quoteData.salesRep}</div></div>
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">Project Type</div><div className="text-lg text-slate-900">{quoteData.projectType}</div></div>
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">Total Doors</div><div className="text-lg text-slate-900">{quoteData.estimatedDoors}</div><div className="text-xs text-slate-500">Openings, gates, OHD</div></div>
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">MDF Location</div><div className="text-lg text-slate-900">{quoteData.mdfLocation || 'Not specified'}</div><div className="text-xs text-slate-500">Main Distribution Frame</div></div>
+                                        <div><div className="text-sm font-semibold text-slate-500 mb-1">Number of IDFs</div><div className="text-lg text-slate-900">{quoteData.numIDFs || '0'}</div><div className="text-xs text-slate-500">Intermediate Distribution Frames</div></div>
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-500 mb-1">Cabinet System</div>
+                                            <div className="text-lg text-slate-900">{quoteData.cabinetVendor === 'lsp' && 'LSP (LifeSafety Power)'}{quoteData.cabinetVendor === 'altronix' && 'Altronix Trove'}{!quoteData.cabinetVendor && <span className="text-slate-500">Not selected</span>}</div>
+                                            <div className="text-xs text-slate-500">Power/enclosure system</div>
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-semibold text-slate-500 mb-1">Card Readers</div>
+                                            <div className="text-sm text-slate-900">
+                                                {parseInt(quoteData.signo20Readers) > 0 && <div>Signo 20: {quoteData.signo20Readers}</div>}
+                                                {parseInt(quoteData.signo40Readers) > 0 && <div>Signo 40: {quoteData.signo40Readers}</div>}
+                                                {!parseInt(quoteData.signo20Readers) && !parseInt(quoteData.signo40Readers) && <div className="text-slate-500">None specified</div>}
+                                            </div>
+                                            <div className="text-xs text-slate-500">Standard readers</div>
+                                        </div>
+                                    </div>
+
+                                    {quoteData.projectType === 'new' && quoteData.estimatedDoors > 0 && (() => {
+                                        const licenses = calculateDoorLicenses(quoteData.estimatedDoors);
+                                        if (licenses.length === 0) return null;
+                                        return (
+                                            <div className="mb-6 p-5 bg-green-50 border-2 border-green-200 rounded-xl">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                                                    <h4 className="font-bold text-green-900">Genea Access Control Licenses</h4>
+                                                </div>
+                                                <div className="text-sm text-green-800 mb-3">The following software licenses are automatically included for {quoteData.estimatedDoors} doors:</div>
+                                                <div className="space-y-2">
+                                                    {licenses.map((license, idx) => (
+                                                        <div key={idx} className="bg-white border border-green-300 rounded-lg p-3">
+                                                            <div className="flex justify-between items-center">
+                                                                <div><div className="font-semibold text-slate-900">{license.sku}</div><div className="text-xs text-slate-600">{license.coverage}</div></div>
+                                                                <div className="text-right"><div className="font-bold text-green-700">Qty: {license.quantity}</div></div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-3 p-3 bg-green-100 border border-green-300 rounded-lg"><div className="text-xs text-green-900"><span className="font-semibold">💡 Note:</span> License fees are tiered based on door count. These have been automatically added to your quote.</div></div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {quoteData.projectType === 'new' && calculateSubtotal() > 0 && (() => {
+                                        const setupFee = calculateSetupFee(calculateSubtotal());
+                                        if (!setupFee) return null;
+                                        return (
+                                            <div className="mb-6 p-5 bg-orange-50 border-2 border-orange-200 rounded-xl">
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                                    <h4 className="font-bold text-orange-900">Setup & Installation Fee</h4>
+                                                </div>
+                                                <div className="text-sm text-orange-800 mb-3">Based on your project size (${calculateSubtotal().toFixed(2)} subtotal), the following setup fee applies:</div>
+                                                <div className="bg-white border border-orange-300 rounded-lg p-3">
+                                                    <div className="flex justify-between items-center">
+                                                        <div><div className="font-semibold text-slate-900">{setupFee.name}</div><div className="text-xs text-slate-600">{setupFee.reason}</div></div>
+                                                        <div className="text-right">
+                                                            <div className="font-bold text-orange-700">
+                                                                ${(() => { const setupProduct = PRODUCTS.find(p => p['Product Code'] === setupFee.sku); return setupProduct ? getPrice(setupProduct).toFixed(2) : '0.00'; })()}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3 p-3 bg-orange-100 border border-orange-300 rounded-lg"><div className="text-xs text-orange-900"><span className="font-semibold">💡 Note:</span> Setup fees are automatically calculated based on total project value and include system configuration, testing, and commissioning.</div></div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    <div className="mb-6">
+                                        <h3 className="text-xl font-bold text-slate-900 mb-4">Line Items</h3>
+                                        <div className="space-y-3">
+                                            {quoteData.items.map(item => (
+                                                <div key={item.id} className="flex justify-between items-start p-4 bg-slate-50 rounded-lg">
+                                                    <div className="flex-1">
+                                                        <div className="font-semibold text-slate-900">{item.Description}</div>
+                                                        <div className="text-sm text-slate-600">{item['Product Code']}</div>
+                                                        <div className="text-sm text-slate-600 mt-1">Qty: {item.quantity}</div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <div className="text-sm text-slate-600">${getPrice(item).toFixed(2)} ea</div>
+                                                        <div className="font-bold text-slate-900">${(getPrice(item) * item.quantity).toFixed(2)}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        
+                                        {quoteData.projectType === 'new' && quoteData.estimatedDoors && quoteData.cabinetVendor && (() => {
+                                            const optimal = getOptimalCabinet(quoteData.estimatedDoors, quoteData.cabinetVendor);
+                                            if (!optimal) return null;
+                                            const hasCabinet = quoteData.items.some(item => optimal.some(cab => cab.sku === item['Product Code']));
+                                            if (!hasCabinet) {
+                                                return (
+                                                    <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-300 rounded-lg">
+                                                        <div className="text-sm font-semibold text-amber-900 mb-2">⚠️ Recommended: Add Cabinet/Enclosure</div>
+                                                        <div className="text-xs text-amber-800 mb-3">Your selected {quoteData.cabinetVendor === 'lsp' ? 'LSP' : 'Altronix Trove'} system configuration for {quoteData.estimatedDoors} doors:</div>
+                                                        <div className="space-y-2">{optimal.map((cab, idx) => (<div key={idx} className="text-xs text-amber-900 bg-amber-100 p-2 rounded">• {cab.quantity}x {cab.name} - {cab.coverage}</div>))}</div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </div>
+
+                                    <div className="pt-6 border-t-2 border-slate-200">
+                                        <div className="flex justify-between items-center mb-2"><div className="text-lg font-semibold text-slate-900">Subtotal</div><div className="text-2xl font-bold text-slate-900">${calculateSubtotal().toFixed(2)}</div></div>
+                                        {(() => {
+                                            const setupFeeItem = quoteData.items.find(item => item.isSetupFee);
+                                            if (setupFeeItem) {
+                                                return (
+                                                    <div className="flex justify-between items-center mb-2 py-2 border-t border-slate-200">
+                                                        <div className="text-sm text-slate-700">{setupFeeItem.Description}<div className="text-xs text-slate-500">Based on project size</div></div>
+                                                        <div className="text-lg font-semibold text-orange-700">${(getPrice(setupFeeItem) * setupFeeItem.quantity).toFixed(2)}</div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                        <div className="flex justify-between items-center pt-3 border-t-2 border-slate-300"><div className="text-xl font-bold text-slate-900">Total</div><div className="text-3xl font-bold text-emerald-700">${calculateTotal().toFixed(2)}</div></div>
+                                        <div className="text-sm text-emerald-700 text-right mt-1">Partner Discount: {level.discount}% applied</div>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <input type="file" accept=".json" onChange={loadQuote} id="load-quote" className="hidden" />
+                                    <label htmlFor="load-quote" className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-slate-600 text-white rounded-xl hover:bg-slate-700 transition-all font-semibold text-lg cursor-pointer">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                        Load Quote
+                                    </label>
+                                    <button onClick={saveQuoteJSON} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-semibold text-lg">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                                        Save Quote (JSON)
+                                    </button>
+                                    <button onClick={downloadQuote} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all font-semibold text-lg">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                        Download TXT
+                                    </button>
+                                    <button onClick={downloadPDF} className="flex-1 flex items-center justify-center gap-2 px-6 py-4 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-all font-semibold text-lg">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                                        Download PDF
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                }
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 p-6">
+                    <div className="max-w-6xl mx-auto">
+                        <div className="text-center mb-8">
+                            <h1 className="text-5xl font-bold text-slate-900 mb-3 tracking-tight">Quote Generator</h1>
+                            <p className="text-lg text-slate-600">Streamline your sales process with automated quoting</p>
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+                            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6">
+                                <div className="flex justify-between items-center max-w-2xl mx-auto">
+                                    {['Project Info', 'Select Products', 'Review'].map((label, idx) => (
+                                        <div key={idx} className="flex items-center">
+                                            <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold transition-all ${step === idx ? 'bg-white text-emerald-600 scale-110' : step > idx ? 'bg-emerald-700 text-white' : 'bg-emerald-400 text-emerald-100'}`}>
+                                                {idx + 1}
+                                            </div>
+                                            {idx < 2 && <div className={`w-24 h-1 mx-2 ${step > idx ? 'bg-emerald-700' : 'bg-emerald-400'}`} />}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="text-center mt-4 text-white font-semibold text-lg">{['Project Info', 'Select Products', 'Review'][step]}</div>
+                            </div>
+
+                            <div className="p-8">
+                                {renderStep()}
+                            </div>
+
+                            <div className="bg-slate-50 p-6 flex justify-between border-t border-slate-200">
+                                <button onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className="flex items-center gap-2 px-6 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold">
+                                    <ChevronLeft className="w-5 h-5" /> Previous
+                                </button>
+                                
+                                {step < 2 ? (
+                                    <button onClick={() => { if (step === 0) { autoAddHardware(); } setStep(step + 1); }} disabled={(step === 0 && !quoteData.customerName) || (step === 1 && quoteData.items.length === 0)} className="flex items-center gap-2 px-6 py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-semibold">
+                                        Next <ChevronRight className="w-5 h-5" />
+                                    </button>
+                                ) : (
+                                    <button onClick={() => { setStep(0); setQuoteData({ customerName: '', projectName: '', partnerLevel: 'silver', salesRep: '', projectType: '', estimatedDoors: '', mdfLocation: '', numIDFs: '', cabinetVendor: '', autoCalculateHardware: true, useDistributedArchitecture: false, signo20Readers: '', signo40Readers: '', items: [] }); }} className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-semibold">
+                                        New Quote
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<QuotingTool />);
+    </script>
+</body>
+</html>
